@@ -1,17 +1,16 @@
-// src/audio/context.ts
 let audioContext: AudioContext | null = null;
 
-export function getAudioContext() {
+export function getAudioContext(): AudioContext {
   if (!audioContext) {
     audioContext = new AudioContext();
   }
   return audioContext;
 }
 
-// Uživatelské spuštění (nutné kvůli browser policy)
-export async function resumeAudio() {
+export async function resumeAudio(): Promise<void> {
   const ctx = getAudioContext();
   if (ctx.state === "suspended") {
     await ctx.resume();
   }
 }
+ 
