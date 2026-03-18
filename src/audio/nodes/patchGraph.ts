@@ -10,86 +10,97 @@ export interface PatchNode {
   disconnect?(): void;
 }
 
+interface Connection {
+  from: string;
+  to: string;
+}
+
 export class PatchGraph {
-  private nodes: PatchNode[] = [];
-  private active = false;
+  private nodes = new Map<string, PatchNode>();
+  private connections: Connection[] = [];
+
   private master: MasterNode | null = null;
+  private active = false;
+
+  /* ============================= */
 
   add(node: PatchNode): void {
-    this.nodes.push(node);
+    this.nodes.set(node.id, node);
     if (this.active) node.start?.();
-    if (this.active && this.master) this.rebuild();
+    this.rebuild();
   }
 
   remove(id: string): void {
-    const i = this.nodes.findIndex(n => n.id === id);
-    if (i === -1) return;
+    const node = this.nodes.get(id);
+    if (!node) return;
 
-    const node = this.nodes[i];
-    if (this.active) node.stop?.();
-
-    // Try to disconnect the node to avoid dangling connections
-    try {
-      node.getOutput().disconnect();
-    } catch {}
-    try {
-      node.getInput().disconnect();
-    } catch {}
-
-    // Allow node-specific cleanup
+    node.stop?.();
     node.disconnect?.();
 
-    this.nodes.splice(i, 1);
+    this.connections = this.connections.filter(
+      c => c.from !== id && c.to !== id
+    );
 
-    if (this.active && this.master) this.rebuild();
+    this.nodes.delete(id);
+    this.rebuild();
   }
 
-  move(id: string, dir: "up" | "down"): void {
-    const i = this.nodes.findIndex(n => n.id === id);
-    if (i === -1) return;
+  connectNodes(fromId: string, toId: string): void {
+    if (!this.nodes.has(fromId) || !this.nodes.has(toId)) return;
 
-    const j = dir === "up" ? i - 1 : i + 1;
-    if (j < 0 || j >= this.nodes.length) return;
+    // zabrání duplicitě
+    if (this.connections.some(c => c.from === fromId && c.to === toId)) return;
 
-    [this.nodes[i], this.nodes[j]] = [this.nodes[j], this.nodes[i]];
-    if (this.active && this.master) this.rebuild();
+    this.connections.push({ from: fromId, to: toId });
+    this.rebuild();
   }
 
-  connect(master: MasterNode): void {
+  disconnectNodes(fromId: string, toId: string): void {
+    this.connections = this.connections.filter(
+      c => !(c.from === fromId && c.to === toId)
+    );
+    this.rebuild();
+  }
+
+  connectMaster(master: MasterNode): void {
     this.master = master;
     this.rebuild();
   }
 
+  /* ============================= */
+
   private rebuild(): void {
     if (!this.master) return;
 
-    // safely disconnect all outputs first
-    this.nodes.forEach(n => {
-      try {
-        n.getOutput().disconnect();
-      } catch {}
-    });
-
-    let current: AudioNode = this.master.input;
-
-    // connect from bottom -> top
-    for (let i = this.nodes.length - 1; i >= 0; i--) {
-      const node = this.nodes[i];
-      try {
-        node.getOutput().connect(current);
-      } catch {}
-      current = node.getInput();
-    }
-  }
-
-  disconnectAll(): void {
+    // odpoj vše
     this.nodes.forEach(n => {
       try { n.getOutput().disconnect(); } catch {}
-      try { n.getInput().disconnect(); } catch {}
-      n.disconnect?.();
     });
-    this.master = null;
+
+    // spoj podle connections
+    this.connections.forEach(c => {
+      const from = this.nodes.get(c.from);
+      const to = this.nodes.get(c.to);
+      if (!from || !to) return;
+
+      try {
+        from.getOutput().connect(to.getInput());
+      } catch {}
+    });
+
+    // leaf nodes → master
+    const hasOutgoing = new Set(this.connections.map(c => c.from));
+
+    this.nodes.forEach((node, id) => {
+      if (!hasOutgoing.has(id)) {
+        try {
+          node.getOutput().connect(this.master!.input);
+        } catch {}
+      }
+    });
   }
+
+  /* ============================= */
 
   startAll(): void {
     this.active = true;
@@ -106,6 +117,10 @@ export class PatchGraph {
   }
 
   getNodes(): PatchNode[] {
-    return this.nodes;
+    return Array.from(this.nodes.values());
+  }
+
+  getConnections(): Connection[] {
+    return this.connections;
   }
 }
