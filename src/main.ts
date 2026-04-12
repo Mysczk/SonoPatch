@@ -24,6 +24,8 @@ let dragOffset = { x: 0, y: 0 };
 let selectedOutput: string | null = null;
 let selectedNodeId: string | null = null;
 
+let currentKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+
 /* ================= ADD ================= */
 
 function addOscNode() {
@@ -50,6 +52,12 @@ function addGainNode() {
 /* ================= RENDER ================= */
 
 function render() {
+  // Odstraň předchozí key handler před novým renderem
+  if (currentKeyHandler) {
+    document.removeEventListener("keydown", currentKeyHandler);
+    currentKeyHandler = null;
+  }
+
   app.innerHTML = `<h2>SonoPatch – Drag Graph</h2>`;
 
   const controls = document.createElement("div");
@@ -67,7 +75,6 @@ function render() {
   addGain.onclick = addGainNode;
 
   controls.append(addOsc, addFilter, addGain);
-  
   app.appendChild(controls);
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -75,7 +82,6 @@ function render() {
   svg.setAttribute("height", "600");
   svg.style.border = "1px solid #444";
   svg.style.background = "#111";
-  svg.style.marginTop = "20px";
 
   const nodes = graph.getNodes();
   const connections = graph.getConnections();
@@ -161,7 +167,6 @@ function render() {
     };
 
     rect.onmousedown = (e) => {
-      if (node.id === master.id) return;
       draggingId = node.id;
       dragOffset = {
         x: e.offsetX - pos.x,
@@ -220,16 +225,17 @@ function render() {
   svg.onmouseup = () => draggingId = null;
   svg.onmouseleave = () => draggingId = null;
 
-  app.appendChild(svg);
-
   /* ================= INFO BOX ================= */
 
   const infoBox = document.createElement("div");
-  infoBox.style.marginTop = "20px";
   infoBox.style.padding = "10px";
   infoBox.style.border = "1px solid #555";
   infoBox.style.background = "#1a1a1a";
   infoBox.style.color = "white";
+  infoBox.style.width = "240px";
+  infoBox.style.flexShrink = "0";
+  infoBox.style.minHeight = "600px";
+  infoBox.style.boxSizing = "border-box";
 
   if (!selectedNodeId) {
     infoBox.textContent = "No node selected";
@@ -248,6 +254,8 @@ function render() {
       const delBtn = document.createElement("button");
       delBtn.textContent = "Delete Node";
       delBtn.style.marginBottom = "10px";
+      delBtn.style.background = "#aa3333";
+      delBtn.style.color = "white";
 
       delBtn.onclick = () => {
         if (node.id === master.id) return;
@@ -262,7 +270,31 @@ function render() {
       infoBox.appendChild(document.createElement("br"));
       infoBox.appendChild(document.createElement("br"));
 
-      /* OSC */
+      /* GLOBAL KEY HANDLER pro Delete / Backspace */
+
+      const keyHandler = (e: KeyboardEvent) => {
+        if (e.key !== "Delete" && e.key !== "Backspace") return;
+
+        const tag = (document.activeElement as HTMLElement)?.tagName;
+        if (tag === "INPUT" || tag === "SELECT") return;
+
+        if (node.id === master.id) return;
+
+        document.removeEventListener("keydown", keyHandler);
+        currentKeyHandler = null;
+
+        graph.remove(node.id);
+        positions.delete(node.id);
+        selectedNodeId = null;
+        selectedOutput = null;
+        render();
+      };
+
+      currentKeyHandler = keyHandler;
+      document.addEventListener("keydown", keyHandler);
+
+      /* ================= OSC ================= */
+
       if (node instanceof OscSource) {
         createSelect(
           infoBox,
@@ -272,26 +304,29 @@ function render() {
           (v) => node.setType(v)
         );
 
-        createSlider(
+        createControl(
           infoBox,
           "Frequency",
           50,
           2000,
           node.getFrequency(),
+          1,
           (v) => node.setFrequency(v)
         );
 
-        createSlider(
+        createControl(
           infoBox,
           "Volume",
           0,
           1,
           node.getVolume(),
+          0.01,
           (v) => node.setVolume(v)
         );
       }
 
-      /* FILTER */
+      /* ================= FILTER ================= */
+
       if (node instanceof PassFilterNode) {
         createSelect(
           infoBox,
@@ -301,40 +336,53 @@ function render() {
           (v) => node.setType(v)
         );
 
-        createSlider(
+        createControl(
           infoBox,
           "Frequency",
           50,
           8000,
           node.getFrequency(),
+          1,
           (v) => node.setFrequency(v)
         );
 
-        createSlider(
+        createControl(
           infoBox,
           "Q",
           0.1,
           20,
           node.getQ(),
+          0.1,
           (v) => node.setQ(v)
         );
       }
 
-      /* GAIN */
+      /* ================= GAIN ================= */
+
       if (node instanceof GainNodeCustom) {
-        createSlider(
+        createControl(
           infoBox,
           "Gain",
           0,
           2,
           node.getGain(),
+          0.01,
           (v) => node.setGain(v)
         );
       }
     }
   }
 
-  app.appendChild(infoBox);
+  /* ================= LAYOUT (flex) ================= */
+
+  const layout = document.createElement("div");
+  layout.style.display = "flex";
+  layout.style.gap = "16px";
+  layout.style.alignItems = "flex-start";
+  layout.style.marginTop = "20px";
+
+  layout.append(infoBox, svg);
+  app.appendChild(layout);
 
   /* ================= ACTIVATE ================= */
 
@@ -363,28 +411,90 @@ function render() {
 
 /* ================= HELPERS ================= */
 
-function createSlider(
+function createControl(
   parent: HTMLElement,
   label: string,
   min: number,
   max: number,
   value: number,
+  step: number,
   onChange: (v: number) => void
 ) {
   const wrapper = document.createElement("div");
+  wrapper.style.marginBottom = "10px";
 
   const l = document.createElement("label");
   l.textContent = label;
 
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = min.toString();
+  slider.max = max.toString();
+  slider.step = step.toString();
+  slider.value = value.toString();
+  slider.style.width = "100%";
+  
   const input = document.createElement("input");
-  input.type = "range";
+  input.type = "number";
   input.min = min.toString();
   input.max = max.toString();
-  input.step = "0.01";
+  input.step = step.toString();
   input.value = value.toString();
-  input.oninput = () => onChange(+input.value);
+  input.style.width = "80px";
+  input.style.marginTop = "4px";
+  input.style.background = "#222";
+  input.style.color = "white";
+  input.style.border = "1px solid #555";
+  
+  slider.oninput = () => {
+    input.value = slider.value;
+    onChange(+slider.value);
+  };
 
-  wrapper.append(l, document.createElement("br"), input, document.createElement("br"));
+  input.oninput = () => {
+    let v = +input.value;
+    if (isNaN(v)) return;
+    if (v < min) v = min;
+    if (v > max) v = max;
+    slider.value = v.toString();
+    input.value = v.toString();
+    onChange(v);
+  };
+
+  input.onwheel = (e) => {
+    e.preventDefault();
+    let v = +input.value;
+    const fineStep = e.shiftKey ? step / 10 : step;
+    v += e.deltaY < 0 ? fineStep : -fineStep;
+    if (v < min) v = min;
+    if (v > max) v = max;
+    slider.value = v.toString();
+    input.value = v.toString();
+    onChange(v);
+  };
+
+  input.onkeydown = (e) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      let v = +input.value;
+      const fineStep = e.shiftKey ? step / 10 : step;
+      v += e.key === "ArrowUp" ? fineStep : -fineStep;
+      if (v < min) v = min;
+      if (v > max) v = max;
+      slider.value = v.toString();
+      input.value = v.toString();
+      onChange(v);
+    }
+  };
+
+  wrapper.append(
+    l,
+    document.createElement("br"),
+    slider,
+    document.createElement("br"),
+    input
+  );
+
   parent.appendChild(wrapper);
 }
 
@@ -396,6 +506,7 @@ function createSelect<T extends string>(
   onChange: (v: T) => void
 ) {
   const wrapper = document.createElement("div");
+  wrapper.style.marginBottom = "10px";
 
   const l = document.createElement("label");
   l.textContent = label;
@@ -412,7 +523,12 @@ function createSelect<T extends string>(
   select.value = value;
   select.onchange = () => onChange(select.value as T);
 
-  wrapper.append(l, document.createElement("br"), select, document.createElement("br"));
+  wrapper.append(
+    l,
+    document.createElement("br"),
+    select
+  );
+
   parent.appendChild(wrapper);
 }
 
