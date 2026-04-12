@@ -22,8 +22,6 @@ export class PatchGraph {
   private master: MasterNode | null = null;
   private active = false;
 
-  /* ============================= */
-
   add(node: PatchNode): void {
     this.nodes.set(node.id, node);
     if (this.active) node.start?.();
@@ -31,6 +29,8 @@ export class PatchGraph {
   }
 
   remove(id: string): void {
+    if (id === this.master?.id) return;
+
     const node = this.nodes.get(id);
     if (!node) return;
 
@@ -48,8 +48,12 @@ export class PatchGraph {
   connectNodes(fromId: string, toId: string): void {
     if (!this.nodes.has(fromId) || !this.nodes.has(toId)) return;
 
-    // zabrání duplicitě
+    // master nesmí být source
+    if (fromId === this.master?.id) return;
+
     if (this.connections.some(c => c.from === fromId && c.to === toId)) return;
+
+    console.log("CONNECT:", fromId, "->", toId);
 
     this.connections.push({ from: fromId, to: toId });
     this.rebuild();
@@ -64,43 +68,34 @@ export class PatchGraph {
 
   connectMaster(master: MasterNode): void {
     this.master = master;
+    this.nodes.set(master.id, master);
     this.rebuild();
   }
 
-  /* ============================= */
+ private rebuild(): void {
+  if (!this.master) return;
 
-  private rebuild(): void {
-    if (!this.master) return;
+  console.log("REBUILD");
 
-    // odpoj vše
-    this.nodes.forEach(n => {
-      try { n.getOutput().disconnect(); } catch {}
-    });
+  // 1. RESET VŠECH GRAPH OUTPUTŮ (kromě Masteru)
+  this.nodes.forEach(n => {
+    if (n.id === this.master?.id) return; // ← fix
+    try {
+      n.getOutput().disconnect();
+    } catch {}
+  });
 
-    // spoj podle connections
-    this.connections.forEach(c => {
-      const from = this.nodes.get(c.from);
-      const to = this.nodes.get(c.to);
-      if (!from || !to) return;
+  // 2. ZNOVU POSTAV GRAPH
+  this.connections.forEach(c => {
+    const from = this.nodes.get(c.from);
+    const to = this.nodes.get(c.to);
+    if (!from || !to) return;
 
-      try {
-        from.getOutput().connect(to.getInput());
-      } catch {}
-    });
-
-    // leaf nodes → master
-    const hasOutgoing = new Set(this.connections.map(c => c.from));
-
-    this.nodes.forEach((node, id) => {
-      if (!hasOutgoing.has(id)) {
-        try {
-          node.getOutput().connect(this.master!.input);
-        } catch {}
-      }
-    });
-  }
-
-  /* ============================= */
+    try {
+      from.getOutput().connect(to.getInput());
+    } catch {}
+  });
+}
 
   startAll(): void {
     this.active = true;

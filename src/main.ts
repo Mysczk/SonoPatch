@@ -5,6 +5,7 @@ import { MasterNode } from "./audio/nodes/masterNode";
 import { OscSource } from "./audio/nodes/oscillatorNode";
 import { PassFilterNode } from "./audio/nodes/passFilter";
 import { PatchGraph } from "./audio/nodes/patchGraph";
+import { GainNodeCustom } from "./audio/nodes/gainNode";  
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -15,6 +16,7 @@ graph.connectMaster(master);
 let activated = false;
 
 const positions = new Map<string, { x: number; y: number }>();
+positions.set(master.id, { x: 800, y: 250 });
 
 let draggingId: string | null = null;
 let dragOffset = { x: 0, y: 0 };
@@ -38,6 +40,13 @@ function addFilterNode() {
   render();
 }
 
+function addGainNode() {
+  const node = new GainNodeCustom();
+  graph.add(node);
+  positions.set(node.id, { x: 400, y: 300 });
+  render();
+}
+
 /* ================= RENDER ================= */
 
 function render() {
@@ -53,7 +62,12 @@ function render() {
   addFilter.textContent = "+ Filter";
   addFilter.onclick = addFilterNode;
 
-  controls.append(addOsc, addFilter);
+  const addGain = document.createElement("button");
+  addGain.textContent = "+ Gain";
+  addGain.onclick = addGainNode;
+
+  controls.append(addOsc, addFilter, addGain);
+  
   app.appendChild(controls);
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -80,7 +94,7 @@ function render() {
     const to = positions.get(conn.to);
     if (!from || !to) return;
 
-    const path = document.createElementNS(svg.namespaceURI, "path");
+    const path = document.createElementNS(svg.namespaceURI, "path") as SVGPathElement;
 
     const x1 = from.x + 120;
     const y1 = from.y + 30;
@@ -123,15 +137,19 @@ function render() {
 
     const group = document.createElementNS(svg.namespaceURI, "g");
 
-    const rect = document.createElementNS(svg.namespaceURI, "rect");
+    const rect = document.createElementNS(svg.namespaceURI, "rect") as SVGRectElement;
     rect.setAttribute("x", pos.x.toString());
     rect.setAttribute("y", pos.y.toString());
     rect.setAttribute("width", "120");
     rect.setAttribute("height", "60");
     rect.setAttribute("rx", "8");
     rect.setAttribute(
-      "fill",
-      selectedNodeId === node.id ? "#4444aa" : "#222"
+    "fill",
+    node.id === master.id
+      ? "#883333"
+      : selectedNodeId === node.id
+      ? "#4444aa"
+      : "#222"
     );
     rect.setAttribute("stroke", "#fff");
 
@@ -143,6 +161,7 @@ function render() {
     };
 
     rect.onmousedown = (e) => {
+      if (node.id === master.id) return;
       draggingId = node.id;
       dragOffset = {
         x: e.offsetX - pos.x,
@@ -150,7 +169,7 @@ function render() {
       };
     };
 
-    const input = document.createElementNS(svg.namespaceURI, "circle");
+    const input = document.createElementNS(svg.namespaceURI, "circle") as SVGCircleElement;
     input.setAttribute("cx", pos.x.toString());
     input.setAttribute("cy", (pos.y + 30).toString());
     input.setAttribute("r", "6");
@@ -164,7 +183,7 @@ function render() {
       }
     };
 
-    const output = document.createElementNS(svg.namespaceURI, "circle");
+    const output = document.createElementNS(svg.namespaceURI, "circle") as SVGCircleElement;
     output.setAttribute("cx", (pos.x + 120).toString());
     output.setAttribute("cy", (pos.y + 30).toString());
     output.setAttribute("r", "6");
@@ -174,6 +193,7 @@ function render() {
     );
 
     output.onclick = () => {
+      if (node.id === master.id) return;
       selectedOutput = node.id;
       render();
     };
@@ -230,6 +250,7 @@ function render() {
       delBtn.style.marginBottom = "10px";
 
       delBtn.onclick = () => {
+        if (node.id === master.id) return;
         graph.remove(node.id);
         positions.delete(node.id);
         selectedNodeId = null;
@@ -296,6 +317,18 @@ function render() {
           20,
           node.getQ(),
           (v) => node.setQ(v)
+        );
+      }
+
+      /* GAIN */
+      if (node instanceof GainNodeCustom) {
+        createSlider(
+          infoBox,
+          "Gain",
+          0,
+          2,
+          node.getGain(),
+          (v) => node.setGain(v)
         );
       }
     }
