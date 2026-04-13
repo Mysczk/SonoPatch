@@ -1,18 +1,17 @@
 import { getAudioContext } from "../context";
 import type { PatchNode } from "./patchGraph";
 
-export class MasterNode implements PatchNode {
+export class GainNodeCustom implements PatchNode {
   readonly id = crypto.randomUUID();
-  readonly label = "Master";
+  readonly label = "Gain";
 
   private gainNode: GainNode;
-  private active = false;
+  private gain = 1;
 
   constructor() {
     const ctx = getAudioContext();
     this.gainNode = ctx.createGain();
-    this.gainNode.gain.value = 0;
-    this.gainNode.connect(ctx.destination);
+    this.gainNode.gain.value = this.gain;
   }
 
   getInput(): AudioNode {
@@ -23,25 +22,16 @@ export class MasterNode implements PatchNode {
     return this.gainNode;
   }
 
-  activate(): void {
-    this.active = true;
+  setGain(v: number): void {
+    this.gain = v;
     this.gainNode.gain.setTargetAtTime(
-      1,
+      v,
       getAudioContext().currentTime,
       0.01
     );
   }
 
-  deactivate(): void {
-    this.active = false;
-    this.gainNode.gain.setTargetAtTime(
-      0,
-      getAudioContext().currentTime,
-      0.01
-    );
-  }
-
-  isActive(): boolean {
-    return this.active;
+  getGain(): number {
+    return this.gain;
   }
 }
