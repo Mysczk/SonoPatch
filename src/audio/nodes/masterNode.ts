@@ -37,7 +37,7 @@ export class MasterNode implements PatchNode {
     this.gainNode.gain.setTargetAtTime(
       0,
       getAudioContext().currentTime,
-      0.01
+      0.6
     );
   }
 

@@ -99,7 +99,10 @@ export class OscSource {
     const ctx = getAudioContext();
     this.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.01);
     this.osc.stop(ctx.currentTime + 0.05);
-    this.osc.disconnect();
+    let Osc = this.osc;
+    setTimeout(() => {
+      Osc.disconnect();
+    }, 60);
     this.osc = null;
   }
 }

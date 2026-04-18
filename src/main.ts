@@ -457,8 +457,6 @@ function createControl(
     if (v < min) v = min;
     if (v > max) v = max;
     slider.value = v.toString();
-    input.value = v.toString();
-    onChange(v);
   };
 
   input.onwheel = (e) => {
