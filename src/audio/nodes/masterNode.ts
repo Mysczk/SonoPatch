@@ -6,13 +6,22 @@ export class MasterNode implements PatchNode {
   readonly label = "Master";
 
   private gainNode: GainNode;
+  private analyser: AnalyserNode;
+  private dataArray: Uint8Array<ArrayBuffer>;
   private active = false;
 
   constructor() {
     const ctx = getAudioContext();
     this.gainNode = ctx.createGain();
     this.gainNode.gain.value = 0;
+    this.analyser = ctx.createAnalyser();
+    this.analyser.fftSize = 32768;
+
+    const bufferLength = this.analyser.frequencyBinCount;
+    this.dataArray = new Uint8Array(bufferLength);
+
     this.gainNode.connect(ctx.destination);
+    this.gainNode.connect(this.analyser);
   }
 
   getInput(): AudioNode {
@@ -43,5 +52,10 @@ export class MasterNode implements PatchNode {
 
   isActive(): boolean {
     return this.active;
+  }
+ 
+  getAnalyserData(): Uint8Array {
+    this.analyser.getByteTimeDomainData(this.dataArray);
+    return this.dataArray;
   }
 }

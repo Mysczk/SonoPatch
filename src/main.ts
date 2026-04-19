@@ -26,6 +26,12 @@ let selectedNodeId: string | null = null;
 
 let currentKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 
+let canvas: HTMLCanvasElement | null = null;
+let ctx2d: CanvasRenderingContext2D | null = null;
+let visualizerStarted = false;
+
+
+
 /* ================= ADD ================= */
 
 function addOscNode() {
@@ -58,7 +64,7 @@ function render() {
     currentKeyHandler = null;
   }
 
-  app.innerHTML = `<h2>SonoPatch – Drag Graph</h2>`;
+  app.innerHTML = `<h2>SonoPatch</h2>`;
 
   const controls = document.createElement("div");
 
@@ -307,8 +313,8 @@ function render() {
         createControl(
           infoBox,
           "Frequency",
-          50,
-          2000,
+          0,
+          10000,
           node.getFrequency(),
           1,
           (v) => node.setFrequency(v)
@@ -339,8 +345,8 @@ function render() {
         createControl(
           infoBox,
           "Frequency",
-          50,
-          8000,
+          0,
+          10000,
           node.getFrequency(),
           1,
           (v) => node.setFrequency(v)
@@ -384,6 +390,58 @@ function render() {
   layout.append(infoBox, svg);
   app.appendChild(layout);
 
+
+  /* ================= VISUALIZER ================= */
+
+if (!canvas) {
+  canvas = document.createElement("canvas");
+  canvas.width = 1000;
+  canvas.height = 200;
+  canvas.style.marginTop = "20px";
+  canvas.style.border = "1px solid #444";
+  canvas.style.background = "#000";
+
+  ctx2d = canvas.getContext("2d")!;
+}
+
+app.appendChild(canvas);
+
+if (!visualizerStarted) {
+  visualizerStarted = true;
+
+  function draw() {
+    requestAnimationFrame(draw);
+
+    if (!ctx2d) return;
+
+    const data = master.getAnalyserData();
+
+    ctx2d.fillStyle = "black";
+    ctx2d.fillRect(0, 0, canvas!.width, canvas!.height);
+
+    ctx2d.lineWidth = 2;
+    ctx2d.strokeStyle = "#00ffcc";
+    ctx2d.beginPath();
+
+    const sliceWidth = canvas!.width / data.length;
+    let x = 0;
+
+    for (let i = 0; i < data.length; i++) {
+      const v = data[i] / 128.0;
+      const y = (v * canvas!.height) / 2;
+
+      if (i === 0) ctx2d.moveTo(x, y);
+      else ctx2d.lineTo(x, y);
+
+      x += sliceWidth;
+    }
+
+    ctx2d.stroke();
+  }
+
+  draw();
+}
+
   /* ================= ACTIVATE ================= */
 
   const act = document.createElement("button");
@@ -408,6 +466,9 @@ function render() {
 
   app.appendChild(act);
 }
+
+
+
 
 /* ================= HELPERS ================= */
 
@@ -457,6 +518,7 @@ function createControl(
     if (v < min) v = min;
     if (v > max) v = max;
     slider.value = v.toString();
+    onChange(v);
   };
 
   input.onwheel = (e) => {
