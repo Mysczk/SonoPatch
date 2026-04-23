@@ -6,6 +6,7 @@ import { OscSource } from "./audio/nodes/oscillatorNode";
 import { PassFilterNode } from "./audio/nodes/passFilter";
 import { PatchGraph } from "./audio/nodes/patchGraph";
 import { GainNodeCustom } from "./audio/nodes/gainNode";  
+import { PianoNode } from "./audio/nodes/pianoNode";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -55,6 +56,16 @@ function addGainNode() {
   render();
 }
 
+let ExistujePianoOtaznik = false
+function addPianoNode() {
+  if (ExistujePianoOtaznik) return;
+  const node = new PianoNode();
+  ExistujePianoOtaznik = true;
+  graph.add(node);
+  positions.set(node.id, { x: 200, y: 150 });
+  render();
+}
+
 /* ================= RENDER ================= */
 
 function render() {
@@ -80,7 +91,12 @@ function render() {
   addGain.textContent = "+ Gain";
   addGain.onclick = addGainNode;
 
-  controls.append(addOsc, addFilter, addGain);
+  const addPiano = document.createElement("button");
+  addPiano.textContent = "+ Secret";
+  addPiano.onclick = addPianoNode;
+
+  controls.append(addOsc, addFilter, addGain, addPiano);
+
   app.appendChild(controls);
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -254,6 +270,33 @@ function render() {
       infoBox.appendChild(title);
       infoBox.appendChild(document.createElement("br"));
       infoBox.appendChild(document.createElement("br"));
+
+      if (node instanceof PianoNode) {
+        const info = document.createElement("div");
+        info.textContent = "Keys: A S D F G H J K";
+        infoBox.appendChild(info);
+
+      const KEY_MAP: Record<string, number> = {
+        a: 0,
+        s: 1,
+        d: 2,
+        f: 3,
+        g: 4,
+        h: 5,
+        j: 6,
+        k: 7,
+      };
+
+      const keyHandler = (e: KeyboardEvent) => {
+        const index = KEY_MAP[e.key];
+        if (index !== undefined) {
+          node.triggerNote(index);
+        }
+      };
+
+      currentKeyHandler = keyHandler;
+      document.addEventListener("keydown", keyHandler);
+}
 
       /* DELETE BUTTON */
 
