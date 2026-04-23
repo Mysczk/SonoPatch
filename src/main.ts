@@ -25,7 +25,8 @@ let dragOffset = { x: 0, y: 0 };
 let selectedOutput: string | null = null;
 let selectedNodeId: string | null = null;
 
-let currentKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+let pianoKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+let deleteKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 
 let canvas: HTMLCanvasElement | null = null;
 let ctx2d: CanvasRenderingContext2D | null = null;
@@ -57,6 +58,7 @@ function addGainNode() {
 }
 
 let ExistujePianoOtaznik = false
+
 function addPianoNode() {
   if (ExistujePianoOtaznik) return;
   const node = new PianoNode();
@@ -69,10 +71,14 @@ function addPianoNode() {
 /* ================= RENDER ================= */
 
 function render() {
-  // Odstraň předchozí key handler před novým renderem
-  if (currentKeyHandler) {
-    document.removeEventListener("keydown", currentKeyHandler);
-    currentKeyHandler = null;
+  if (pianoKeyHandler) {
+    document.removeEventListener("keydown", pianoKeyHandler);
+    pianoKeyHandler = null;
+  }
+
+  if (deleteKeyHandler) {
+    document.removeEventListener("keydown", deleteKeyHandler);
+    deleteKeyHandler = null;
   }
 
   app.innerHTML = `<h2>SonoPatch</h2>`;
@@ -287,15 +293,15 @@ function render() {
         k: 7,
       };
 
-      const keyHandler = (e: KeyboardEvent) => {
+      const handler = (e: KeyboardEvent) => {
         const index = KEY_MAP[e.key];
         if (index !== undefined) {
           node.triggerNote(index);
         }
       };
 
-      currentKeyHandler = keyHandler;
-      document.addEventListener("keydown", keyHandler);
+      pianoKeyHandler = handler;
+      document.addEventListener("keydown", handler);
 }
 
       /* DELETE BUTTON */
@@ -308,6 +314,14 @@ function render() {
 
       delBtn.onclick = () => {
         if (node.id === master.id) return;
+        if (node instanceof PianoNode) {
+          ExistujePianoOtaznik = false;
+
+          if (pianoKeyHandler) {
+            document.removeEventListener("keydown", pianoKeyHandler);
+            pianoKeyHandler = null;
+          }
+        }
         graph.remove(node.id);
         positions.delete(node.id);
         selectedNodeId = null;
@@ -321,26 +335,23 @@ function render() {
 
       /* GLOBAL KEY HANDLER pro Delete / Backspace */
 
-      const keyHandler = (e: KeyboardEvent) => {
-        if (e.key !== "Delete" && e.key !== "Backspace") return;
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
 
-        const tag = (document.activeElement as HTMLElement)?.tagName;
-        if (tag === "INPUT" || tag === "SELECT") return;
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "SELECT") return;
 
-        if (node.id === master.id) return;
+      if (node.id === master.id) return;
+      if (node instanceof PianoNode) ExistujePianoOtaznik = false;
+      graph.remove(node.id);
+      positions.delete(node.id);
+      selectedNodeId = null;
+      selectedOutput = null;
+      render();
+    };
 
-        document.removeEventListener("keydown", keyHandler);
-        currentKeyHandler = null;
-
-        graph.remove(node.id);
-        positions.delete(node.id);
-        selectedNodeId = null;
-        selectedOutput = null;
-        render();
-      };
-
-      currentKeyHandler = keyHandler;
-      document.addEventListener("keydown", keyHandler);
+    deleteKeyHandler = keyHandler;
+    document.addEventListener("keydown", keyHandler);
 
       /* ================= OSC ================= */
 

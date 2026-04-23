@@ -77,9 +77,8 @@ export class PatchGraph {
 
   console.log("REBUILD");
 
-  // 1. RESET VŠECH GRAPH OUTPUTŮ (kromě Masteru)
   this.nodes.forEach(n => {
-    if (n.id === this.master?.id) return; // ← fix
+    if (n.id === this.master?.id) return;
     try {
       n.getOutput().disconnect();
     } catch {}
