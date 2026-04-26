@@ -48,7 +48,6 @@ export class PatchGraph {
   connectNodes(fromId: string, toId: string): void {
     if (!this.nodes.has(fromId) || !this.nodes.has(toId)) return;
 
-    // master nesmí být source
     if (fromId === this.master?.id) return;
 
     if (this.connections.some(c => c.from === fromId && c.to === toId)) return;
@@ -84,7 +83,6 @@ export class PatchGraph {
     } catch {}
   });
 
-  // 2. ZNOVU POSTAV GRAPH
   this.connections.forEach(c => {
     const from = this.nodes.get(c.from);
     const to = this.nodes.get(c.to);
