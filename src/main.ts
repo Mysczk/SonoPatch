@@ -98,7 +98,7 @@ function render() {
   addGain.onclick = addGainNode;
 
   const addPiano = document.createElement("button");
-  addPiano.textContent = "+ Secret";
+  addPiano.textContent = "+ Piano";
   addPiano.onclick = addPianoNode;
 
   controls.append(addOsc, addFilter, addGain, addPiano);
